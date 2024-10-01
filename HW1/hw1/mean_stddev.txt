@@ -1,0 +1,7 @@
+Pic 1:
+    Mean: 83.51704
+    Standard Deviation: 48.20629381078506
+
+Pic 2:
+    Mean: 103.74710476190477
+    Standard Deviation: 46.99263096096524
