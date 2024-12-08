@@ -20,9 +20,9 @@ Then do the normal edge detection, HoughLinesP/HoughCircles.
 
 
 def main() -> None:
-    part1()
+    # part1()
     part2()
-    part3()
+    #part3()
     # part4()
     # part5()
 
@@ -50,14 +50,29 @@ def part1() -> None:
 
 
 def part2() -> None:
-    sign_images = ['images/construction.jpg', 'images/regulatory.jpg', 'images/regulatory_yield.jpg',
-                   'images/rr_crossing.jpg', 'images/services.jpg', 'images/warning.jpg']
+    sign_images = [#'images/construction.jpg',
+                   #'images/regulatory.jpg',
+                   #'images/regulatory_yield.jpg',
+                   'images/rr_crossing.jpg',
+                   #'images/services.jpg',
+                   #'images/warning.jpg'
+    ]
 
-    file_name = ['construction_txt.jpg', 'regulatory_txt.jpg', 'regulatory_yield_txt.jpg',
-                 'rr_crossing_txt.jpg', 'services_txt.jpg', 'warning_txt.jpg']
+    file_name = [#'construction_txt.jpg',
+                 #'regulatory_txt.jpg',
+                 #'regulatory_yield_txt.jpg',
+                 'rr_crossing_txt.jpg',
+                 #'services_txt.jpg',
+                 #'warning_txt.jpg'
+                 ]
 
-    sign_functions = [identify_construction, identify_stop_sign, identify_yield,
-                      identify_rr_crossing, identify_services, identify_warning]
+    sign_functions = [#identify_construction,
+                      #identify_stop_sign,
+                      #identify_yield,
+                      identify_rr_crossing,
+                      #identify_services,
+                      #identify_warning
+    ]
 
     for img_in, file_out, function_call in zip(sign_images, file_name, sign_functions):
         img = cv2.imread(img_in)

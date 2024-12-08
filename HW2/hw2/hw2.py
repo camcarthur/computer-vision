@@ -1,5 +1,7 @@
 import cv2
+import math
 import numpy as np
+from cv2 import GaussianBlur
 
 
 def sign_lines(img: np.ndarray) -> np.ndarray:
@@ -10,7 +12,23 @@ def sign_lines(img: np.ndarray) -> np.ndarray:
     :param img: Image as numpy array
     :return: Numpy array of lines.
     """
-    raise NotImplemented
+
+    edges = cv2.Canny(img, threshold1=50, threshold2=150, apertureSize=3)
+
+    # Detect lines using Hough Line Transform
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,            # Distance resolution of the accumulator in pixels
+        theta=np.pi / 180,  # Angle resolution of the accumulator in radians
+        threshold=120,    # Minimum number of intersections to detect a line
+        minLineLength=50,  # Minimum length of a line
+        maxLineGap=10      # Maximum allowed gap between line segments
+    )
+
+    # If no lines are detected, return an empty array
+    if lines is None:
+        return np.array([])
+    return np.array(lines[:, 0])
 
 def sign_circle(img: np.ndarray) -> np.ndarray:
     """
@@ -18,7 +36,28 @@ def sign_circle(img: np.ndarray) -> np.ndarray:
     :param img: Image as numpy array
     :return: Numpy array of circles.
     """
-    raise NotImplemented
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
+    filled_circle = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+
+    # Step 2: Edge detection
+    edges = cv2.Canny(filled_circle, 50, 150)
+    cv2.imshow("Edges for Circle Detection", edges)
+    cv2.waitKey(0)
+
+    circles = cv2.HoughCircles(
+        edges,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,  # Inverse ratio of resolution
+        minDist=30,  # Minimum distance between circle centers
+        param1=50,  # Upper threshold for the Canny edge detector
+        param2=35,  # Threshold for center detection
+        minRadius=50,  # Minimum radius of circles
+        maxRadius=200  # Maximum radius of circles
+    )
+
+    if circles is None:
+        return np.array([])
+    return np.uint16(np.around(circles[0]))
 
 def sign_axis(lines: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -318,7 +357,6 @@ def identify_yield(img: np.ndarray) -> tuple:
         print("No yield sign detected.")
         return -1, -1, 'unknown'
 
-
 def identify_construction(img: np.ndarray) -> tuple:
     """
     Identifies the construction sign in the image.
@@ -387,7 +425,6 @@ def identify_construction(img: np.ndarray) -> tuple:
     else:
         print("No construction sign detected.")
         return -1, -1, 'unknown'
-
 
 def identify_warning(img: np.ndarray) -> tuple:
     """
@@ -463,71 +500,94 @@ def identify_rr_crossing(img: np.ndarray) -> tuple:
     Identifies the railroad crossing sign in the image.
     Returns (x, y, 'rr_crossing') if detected, or (-1, -1, 'unknown') if not.
     """
-    import cv2
-    import numpy as np
-
-    img_resized = cv2.resize(img, (600, 400))
-    img_blur = cv2.medianBlur(img_resized, 5)
+    #img_resized = cv2.resize(img, (600, 400))
+    img_blur = cv2.medianBlur(img, 5)
     hsv = cv2.cvtColor(img_blur, cv2.COLOR_BGR2HSV)
 
-    # define yellow color range
+    # Define yellow color range
     lower_yellow = np.array([20, 100, 100])
     upper_yellow = np.array([35, 255, 255])
 
-    # create yellow mask
+    # Create yellow mask
     yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-    # reduce noise in mask
+    # Reduce noise in mask
     kernel = np.ones((5, 5), np.uint8)
     yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_OPEN, kernel)
 
+    # Debug yellow mask
+    # cv2.imshow("Yellow Mask", yellow_mask)
+    # cv2.waitKey(0)
+
+    # Masked grayscale image
     gray_image = cv2.cvtColor(img_blur, cv2.COLOR_BGR2GRAY)
     masked_gray = cv2.bitwise_and(gray_image, gray_image, mask=yellow_mask)
 
-    # canny edge detection
-    edges = cv2.Canny(masked_gray, 50, 150)
 
-    # find circle
-    circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
-                               param1=50, param2=15, minRadius=10, maxRadius=100)
+    cv2.imshow("Masked Grayscale Image", masked_gray)
+    cv2.waitKey(0)
+    # Step 1: Detect circles
+    circles = sign_circle(masked_gray)
+    print("Detected Circles:", circles)
+    if len(circles) == 0:
+        return -1, -1, 'unknown'
 
-    if circles is not None:
-        circles = np.uint16(np.around(circles[0]))
-        for circle in circles:
-            x_center, y_center, radius = circle
+    # Draw detected circles
+    for x, y, radius in circles:
+        cv2.circle(img, (x, y), radius, (255, 0, 0), 2)  # Circle outline
+        cv2.circle(img, (x, y), 2, (0, 255, 0), 3)  # Circle center
+    cv2.imshow("Circles", img)
+    cv2.waitKey(0)
 
-            # create mask for circle
-            circle_mask = np.zeros_like(gray_image)
-            cv2.circle(circle_mask, (x_center, y_center), radius, 255, thickness=-1)
-            circle_roi = cv2.bitwise_and(edges, edges, mask=circle_mask)
+    blur = GaussianBlur(masked_gray, (5,5), 0)
+    # Step 2: Detect lines
+    lines = sign_lines(blur)
+    print("Detected Lines:", lines)
+    if len(lines) == 0:
+        return -1, -1, 'unknown'
 
-            # detect lines
-            lines = cv2.HoughLines(circle_roi, rho=1, theta=np.pi/180, threshold=20)
+    # Draw detected lines
+    for x1, y1, x2, y2 in lines:
+        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Line
+    cv2.imshow("Lines", img)
+    cv2.waitKey(0)
 
-            # check for X shape
-            if lines is not None:
-                angles = []
-                for line in lines:
-                    rho, theta = line[0]
-                    angle = theta * 180 / np.pi
-                    angles.append(angle)
+    # Step 3: Validate the "X" shape
+    for circle in circles:
+        x, y, radius = circle
+        lines_in_circle = []
 
-                # check the line angles
-                has_line_45 = any(35 < angle < 55 for angle in angles)
-                has_line_135 = any(125 < angle < 145 for angle in angles)
+        # Find lines within the circle
+        for x1, y1, x2, y2 in lines:
+            # Check if both endpoints of the line are within the circle
+            if ((x1 - x) ** 2 + (y1 - y) ** 2 <= radius ** 2 and
+                    (x2 - x) ** 2 + (y2 - y) ** 2 <= radius ** 2):
+                lines_in_circle.append((x1, y1, x2, y2))
 
-                if has_line_45 and has_line_135:
-                    # translate coordinates into original image
-                    x = int(x_center * img.shape[1] / img_resized.shape[1])
-                    y = int(y_center * img.shape[0] / img_resized.shape[0])
+        # Validate if lines form an "X" by finding intersections
+        for i, line1 in enumerate(lines_in_circle):
+            for line2 in lines_in_circle[i + 1:]:
+                x1, y1, x2, y2 = line1
+                x3, y3, x4, y4 = line2
 
-                    print(f"Railroad crossing sign detected at ({x}, {y}).")
+                # Calculate the intersection point
+                denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+                if denom == 0:
+                    continue  # Parallel lines
+
+                px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom
+                py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom
+
+                # Check if the intersection point lies within the circle
+                if (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
+                    print(f"Intersection detected at ({px}, {py})")
+                    cv2.circle(img_resized, (int(px), int(py)), 5, (255, 255, 0), -1)  # Draw intersection
+                    cv2.imshow("Validated X Shape", img_resized)
+                    cv2.waitKey(0)
                     return x, y, 'rr_crossing'
-    else:
-        print("No circles detected.")
 
-    print("No railroad crossing sign detected.")
     return -1, -1, 'unknown'
+
 
 def identify_services(img: np.ndarray) -> tuple:
     """
